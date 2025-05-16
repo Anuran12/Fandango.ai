@@ -7,7 +7,7 @@ interface TimeRange {
   end?: string;
 }
 
-// Define return types for methods to include error property
+// Define return types for methods to include error property xfhbfh
 interface ScraperResult {
   success?: boolean;
   message?: string;

@@ -1,7 +1,9 @@
 "use client";
 
+import { type ScraperQuery } from "@/lib/fandangoScraper";
+
 interface ParametersDisplayProps {
-  params: any;
+  params: ScraperQuery | null;
 }
 
 export default function ParametersDisplay({ params }: ParametersDisplayProps) {

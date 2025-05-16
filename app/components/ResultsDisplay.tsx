@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
+import { type ScraperResult } from "@/lib/fandangoScraper";
+
 interface ResultsDisplayProps {
-  results: any;
+  results: ScraperResult | null;
 }
 
 export default function ResultsDisplay({ results }: ResultsDisplayProps) {
@@ -28,11 +31,14 @@ export default function ResultsDisplay({ results }: ResultsDisplayProps) {
         <div className="mt-6">
           <h3 className="text-lg font-medium mb-4 text-gray-800">Screenshot</h3>
           <div className="w-full">
-            <div className="rounded-lg overflow-hidden shadow-md">
-              <img
+            <div className="rounded-lg overflow-hidden shadow-md relative">
+              <Image
                 src={results.screenshots[0]}
                 alt="Movie showtime screenshot"
+                width={800}
+                height={600}
                 className="w-full h-auto"
+                priority
               />
             </div>
           </div>

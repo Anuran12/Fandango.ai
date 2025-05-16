@@ -31,11 +31,12 @@ export default function InfoSection() {
 
           <p className="font-medium mt-4">Example queries:</p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>"Show me showtimes for Dune in Chicago"</li>
+            <li>&#34;Show me showtimes for Dune in Chicago&#34;</li>
             <li>
-              "What movies are playing at AMC theaters in New York after 7pm?"
+              &#34;What movies are playing at AMC theaters in New York after
+              7pm?&#34;
             </li>
-            <li>"Find family movies at Regal Cinema in Los Angeles"</li>
+            <li>&#34;Find family movies at Regal Cinema in Los Angeles&#34;</li>
           </ul>
         </div>
       )}

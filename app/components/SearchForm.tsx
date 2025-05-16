@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { toast } from "react-hot-toast";
+import { type ScraperQuery } from "@/lib/fandangoScraper";
 
 interface SearchFormProps {
-  onSubmit: (query: string, params: any) => void;
+  onSubmit: (query: string, params: ScraperQuery) => void;
   isProcessing: boolean;
 }
 

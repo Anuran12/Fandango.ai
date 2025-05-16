@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
         // Handle times with AM/PM indicators
         let timeStr = time.toLowerCase();
-        let isPM = timeStr.includes("pm");
+        const isPM = timeStr.includes("pm");
         timeStr = timeStr.replace("am", "").replace("pm", "").trim();
 
         // Parse hours and minutes

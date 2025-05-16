@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
+import { type ScraperQuery, type ScraperResult } from "@/lib/fandangoScraper";
 
 import SearchForm from "./components/SearchForm";
 import ParametersDisplay from "./components/ParametersDisplay";
@@ -10,11 +11,15 @@ import InfoSection from "./components/InfoSection";
 
 export default function Home() {
   const [queryHistory, setQueryHistory] = useState<string[]>([]);
-  const [extractedParams, setExtractedParams] = useState<any>(null);
-  const [scraperResults, setScraperResults] = useState<any>(null);
+  const [extractedParams, setExtractedParams] = useState<ScraperQuery | null>(
+    null
+  );
+  const [scraperResults, setScraperResults] = useState<ScraperResult | null>(
+    null
+  );
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleSearch = async (query: string, params: any) => {
+  const handleSearch = async (query: string, params: ScraperQuery) => {
     // Add the query to history if it's not already there
     if (!queryHistory.includes(query)) {
       setQueryHistory([...queryHistory, query]);

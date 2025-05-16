@@ -1,4 +1,4 @@
-import { Browser, Page, chromium } from "playwright-core";
+import { Browser, Page, chromium, BrowserContext } from "playwright-core";
 import path from "path";
 import fs from "fs";
 
@@ -24,11 +24,16 @@ interface ScraperQuery {
   aisle_required?: boolean;
 }
 
+// Add interface for session object
+interface Session {
+  close(): Promise<void>;
+}
+
 class FandangoScraper {
   private browser: Browser | null = null;
-  private context: any = null;
+  private context: BrowserContext | null = null;
   private page: Page | null = null;
-  private sessions: any[] = [];
+  private sessions: Session[] = [];
   private screenshotDir: string;
 
   constructor(
@@ -119,7 +124,7 @@ class FandangoScraper {
 
     try {
       await this.page.waitForLoadState("networkidle", { timeout });
-    } catch (error) {
+    } catch {
       console.log("Navigation timeout occurred, but continuing...");
       // Remove navigation timeout screenshot
     }
@@ -188,7 +193,7 @@ class FandangoScraper {
 
       if (!searchBox) {
         console.error("ERROR: Could not find search box");
-        return { error: "Could not find search box" };
+        return { error: "Could not find search box", screenshots: [] };
       }
 
       // Clear the search box and type the search text
@@ -230,7 +235,7 @@ class FandangoScraper {
             try {
               await this.page.evaluate(() => {
                 const forms = document.querySelectorAll("form");
-                for (let form of forms) {
+                for (const form of forms) {
                   if (form.querySelector('input[type="text"]')) {
                     form.submit();
                     return;
@@ -695,8 +700,10 @@ class FandangoScraper {
 
                 console.log(`Found ${showtimeButtons.length} showtime buttons`);
 
-                showtimeButtons.forEach((button: any) => {
-                  const timeText = button.innerText.trim();
+                showtimeButtons.forEach((button: Element) => {
+                  // Use type assertion to safely access properties
+                  const buttonElement = button as HTMLElement;
+                  const timeText = buttonElement.innerText.trim();
                   console.log(`Checking button with text: "${timeText}"`);
 
                   const buttonTime = parseTime(timeText);
@@ -757,11 +764,11 @@ class FandangoScraper {
                   if (shouldHighlight) {
                     // This showtime is within the requested range or matches specific time
                     console.log(`Highlighting time: ${timeText}`);
-                    button.style.border = "3px solid green";
-                    button.style.boxShadow = "0 0 8px #00FF00";
-                    button.style.backgroundColor = "#006600";
-                    button.style.color = "white";
-                    button.style.fontWeight = "bold";
+                    buttonElement.style.border = "3px solid green";
+                    buttonElement.style.boxShadow = "0 0 8px #00FF00";
+                    buttonElement.style.backgroundColor = "#006600";
+                    buttonElement.style.color = "white";
+                    buttonElement.style.fontWeight = "bold";
                   }
                 });
               },
@@ -965,12 +972,12 @@ class FandangoScraper {
     }
   }
 
-  async processQuery(query: ScraperQuery) {
+  async processQuery(query: ScraperQuery): Promise<ScraperResult> {
     if (!this.page) throw new Error("Page not initialized");
 
-    const results: any = {
+    const results: ScraperResult = {
       message: "Processing complete",
-      screenshots: [],
+      screenshots: [], // Initialize screenshots with empty array
     };
 
     try {
@@ -1016,7 +1023,11 @@ class FandangoScraper {
                 timeFilter,
                 specificTimes
               );
-              if (movieResult.screenshots) {
+              if (
+                movieResult.screenshots &&
+                movieResult.screenshots.length > 0
+              ) {
+                results.screenshots = results.screenshots || [];
                 results.screenshots.push(...movieResult.screenshots);
               }
               if (movieResult.error) {
@@ -1055,7 +1066,11 @@ class FandangoScraper {
                 timeFilter,
                 specificTimes
               );
-              if (movieResult.screenshots) {
+              if (
+                movieResult.screenshots &&
+                movieResult.screenshots.length > 0
+              ) {
+                results.screenshots = results.screenshots || [];
                 results.screenshots.push(...movieResult.screenshots);
               }
               if (movieResult.error) {
@@ -1095,7 +1110,8 @@ class FandangoScraper {
             timeFilter,
             specificTimes
           );
-          if (movieResult.screenshots) {
+          if (movieResult.screenshots && movieResult.screenshots.length > 0) {
+            results.screenshots = results.screenshots || [];
             results.screenshots.push(...movieResult.screenshots);
           }
           if (movieResult.error) {
@@ -1136,4 +1152,9 @@ class FandangoScraper {
   }
 }
 
-export { FandangoScraper, type ScraperQuery, type TimeRange };
+export {
+  FandangoScraper,
+  type ScraperQuery,
+  type TimeRange,
+  type ScraperResult,
+};

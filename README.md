@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fandango Movie Explorer
+
+A Next.js application for searching movie showtimes on Fandango using natural language queries. This app uses Google's Gemini AI to process natural language queries and extract structured parameters, then scrapes Fandango.com for real-time movie information.
+
+## Features
+
+- Natural language processing for movie queries using Google Gemini API
+- Web scraping of Fandango.com for real-time movie information
+- Search for movies by title, location, theater, and time
+- Visual display of showtimes with screenshots
+- Query history tracking
+
+## Technologies Used
+
+- Next.js 14 with App Router
+- TypeScript
+- Tailwind CSS
+- Google Generative AI (Gemini API)
+- Playwright for web scraping
+- React hooks for state management
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18.17 or later
+- Google Gemini API key
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone this repository
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   git clone <repository-url>
+   cd fandango-next
+   ```
 
-## Learn More
+2. Install dependencies
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   npm install
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Create a `.env.local` file in the root directory and add your Gemini API key:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```
+   GEMINI_API_KEY=your_gemini_api_key
+   ```
 
-## Deploy on Vercel
+4. Start the development server
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   ```bash
+   npm run dev
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## Usage
+
+1. Enter a natural language query like "Show me showtimes for Dune in Chicago"
+2. The app will extract parameters using the Gemini API
+3. The extracted parameters will be displayed
+4. The app will search Fandango.com for the requested information
+5. Results and screenshots will be displayed
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Acknowledgements
+
+- Google Generative AI for natural language processing
+- Playwright for web scraping capabilities
+- Next.js team for the amazing framework

@@ -1,4 +1,4 @@
-import { Browser, Page, chromium, BrowserContext } from "playwright-core";
+import { Browser, Page, BrowserContext, chromium } from "playwright-core";
 import path from "path";
 import fs from "fs";
 
@@ -35,12 +35,16 @@ class FandangoScraper {
   private page: Page | null = null;
   private sessions: Session[] = [];
   private screenshotDir: string;
+  private browserWSEndpoint: string;
 
   constructor(
     private headless: boolean = true,
     private timeout: number = 60000
   ) {
     this.screenshotDir = path.join(process.cwd(), "public", "screenshots");
+
+    // Get the browser endpoint from environment variables
+    this.browserWSEndpoint = process.env.BROWSER_WS_ENDPOINT || "";
 
     // Create screenshots directory if it doesn't exist
     if (!fs.existsSync(this.screenshotDir)) {
@@ -50,7 +54,16 @@ class FandangoScraper {
 
   async initialize() {
     try {
-      this.browser = await chromium.launch({ headless: this.headless });
+      // Connect to browser service in serverless mode, or launch locally for development
+      if (this.browserWSEndpoint) {
+        console.log(`Connecting to browser at: ${this.browserWSEndpoint}`);
+        this.browser = await chromium.connect(this.browserWSEndpoint);
+      } else {
+        // Fallback for local development
+        console.log("No browser endpoint found, launching browser locally");
+        this.browser = await chromium.launch({ headless: this.headless });
+      }
+
       this.context = await this.browser.newContext({
         viewport: { width: 1280, height: 720 },
         userAgent:

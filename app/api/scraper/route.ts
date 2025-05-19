@@ -18,15 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Initialize the scraper with reduced timeout
-    scraper = new FandangoScraper(true, SCRAPER_TIMEOUT);
-    const initialized = await scraper.initialize();
-
-    if (!initialized) {
-      return NextResponse.json(
-        { error: "Failed to initialize scraper" },
-        { status: 500 }
-      );
-    }
+    scraper = await FandangoScraper.getOrCreateSession();
 
     // Process the query with timeout
     const timeoutPromise = new Promise((_, reject) => {
@@ -40,10 +32,19 @@ export async function POST(req: NextRequest) {
       timeoutPromise,
     ])) as any; // Use type assertion to handle promise race result
 
+    // Make sure the sessionId is included in the results
+    if (!results.sessionId && scraper) {
+      results.sessionId = scraper.sessionId;
+    }
+
     return NextResponse.json(results);
   } catch (error) {
     console.error("Error in scraper API:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (scraper) {
+      scraper.hasError = true;
+    }
 
     return NextResponse.json(
       {
@@ -54,8 +55,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Clean up resources
-    if (scraper) {
+    // Only close the scraper if there was an error
+    // Otherwise keep it alive for potential seat map requests
+    if (scraper && scraper.hasError) {
       await scraper.close();
     }
   }

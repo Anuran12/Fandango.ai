@@ -1,4 +1,10 @@
-import { Browser, Page, chromium, BrowserContext } from "playwright-core";
+import {
+  Browser,
+  Page,
+  chromium,
+  BrowserContext,
+  ElementHandle,
+} from "playwright-core";
 import path from "path";
 import fs from "fs";
 
@@ -23,6 +29,7 @@ interface ScraperResult {
   timeSlots?: TimeSlot[]; // Add time slots to the result
   movieTitle?: string;
   theaterName?: string;
+  sessionId?: string; // Add session ID to the result
 }
 
 interface ScraperQuery {
@@ -46,12 +53,15 @@ class FandangoScraper {
   private sessions: Session[] = [];
   private screenshotDir: string;
   private currentPage: string = ""; // Track the current page URL
+  public sessionId: string = ""; // Make sessionId public
+  public hasError: boolean = false; // Add a flag to track if an error occurred
 
   constructor(
     private headless: boolean = true,
     private timeout: number = 30000
   ) {
     this.screenshotDir = path.join(process.cwd(), "public", "screenshots");
+    this.sessionId = Date.now().toString(); // Generate a unique session ID
 
     // Create screenshots directory if it doesn't exist
     if (!fs.existsSync(this.screenshotDir)) {
@@ -128,22 +138,17 @@ class FandangoScraper {
   }
 
   async close() {
-    try {
-      // Close all sessions
-      for (const session of this.sessions) {
-        await session.close();
-      }
+    // Remove from active scrapers
+    FandangoScraper.activeScrapers.delete(this.sessionId);
 
-      // Close main browser
-      if (this.context) {
-        await this.context.close();
-      }
-      if (this.browser) {
-        await this.browser.close();
-      }
-    } catch (error) {
-      console.error("Error during cleanup:", error);
-    }
+    // Call the original close logic
+    if (this.page) await this.page.close();
+    if (this.context) await this.context.close();
+    if (this.browser) await this.browser.close();
+
+    this.page = null;
+    this.context = null;
+    this.browser = null;
   }
 
   async takeScreenshot(
@@ -1811,6 +1816,7 @@ class FandangoScraper {
     const results: ScraperResult = {
       message: "Processing complete",
       screenshots: [], // Initialize screenshots with empty array
+      sessionId: this.sessionId, // Add the session ID to the results
     };
 
     // Set aggressive timeouts for better performance
@@ -2367,12 +2373,57 @@ class FandangoScraper {
       await this.waitForNavigation();
       await this.page.waitForTimeout(1000);
 
-      // Look for the specific seat map container with ID "mapZoom"
+      // Take a screenshot after navigation
+      const afterClickSS = await this.takeScreenshot("after_time_button_click");
+      screenshots.push(afterClickSS);
+
+      // Sometimes there might be a "Continue" button before the seat map
+      try {
+        const continueButton = this.page.locator(
+          "button:has-text('Continue'), .fd-cta-container button, .btn-primary:has-text('Continue'), a:has-text('Continue')"
+        );
+        if ((await continueButton.count()) > 0) {
+          console.log("Found Continue button, clicking it");
+          await continueButton.click();
+          await this.waitForNavigation();
+          await this.page.waitForTimeout(1000);
+
+          const afterContinueSS = await this.takeScreenshot(
+            "after_continue_click"
+          );
+          screenshots.push(afterContinueSS);
+        }
+      } catch (error) {
+        console.log("No Continue button found or error clicking it:", error);
+      }
+
+      // Check for "Select Seating" or other intermediate pages
+      try {
+        const selectSeatingButton = this.page.locator(
+          "button:has-text('Select Seating'), button:has-text('Select Seats'), .btn-primary:has-text('Select')"
+        );
+        if ((await selectSeatingButton.count()) > 0) {
+          console.log("Found Select Seating button, clicking it");
+          await selectSeatingButton.click();
+          await this.waitForNavigation();
+          await this.page.waitForTimeout(1000);
+
+          const afterSelectSeatingSS = await this.takeScreenshot(
+            "after_select_seating_click"
+          );
+          screenshots.push(afterSelectSeatingSS);
+        }
+      } catch (error) {
+        console.log(
+          "No Select Seating button found or error clicking it:",
+          error
+        );
+      }
+
+      // Look for seat map containers
       const seatMapZoom = this.page.locator("#mapZoom.seat-map__container");
       if ((await seatMapZoom.count()) > 0) {
         console.log("Found seat map container with ID 'mapZoom'");
-
-        // Take a screenshot of the seat map zoom container
         const seatMapSS = await this.takeScreenshot(
           "seat_map_zoom",
           "#mapZoom.seat-map__container"
@@ -2383,19 +2434,19 @@ class FandangoScraper {
           success: true,
           message: "Successfully captured seat map container",
           screenshots,
+          sessionId: this.sessionId,
         };
       }
 
-      // Look for the general seat map container as fallback
-      const seatMapContainer = this.page.locator(".seat-map__container");
-
+      // Try other seat map container selectors
+      const seatMapContainer = this.page.locator(
+        ".seat-map__container, .seat-map, #SeatingContainer, #seatmap"
+      );
       if ((await seatMapContainer.count()) > 0) {
         console.log("Found general seat map container");
-
-        // Take a screenshot of the seat map
         const seatMapSS = await this.takeScreenshot(
           "seat_map",
-          ".seat-map__container"
+          ".seat-map__container, .seat-map, #SeatingContainer, #seatmap"
         );
         screenshots.push(seatMapSS);
 
@@ -2403,38 +2454,63 @@ class FandangoScraper {
           success: true,
           message: "Successfully navigated to seat map",
           screenshots,
-        };
-      } else {
-        // Try to find any seats or seat map related elements
-        const seatsContainer = this.page.locator(
-          "div:has(.seat-map__seat), .seat-map, .seating-chart"
-        );
-
-        if ((await seatsContainer.count()) > 0) {
-          console.log("Found seat container");
-          const seatMapSS = await this.takeScreenshot(
-            "seat_map",
-            "div:has(.seat-map__seat), .seat-map, .seating-chart"
-          );
-          screenshots.push(seatMapSS);
-
-          return {
-            success: true,
-            message: "Found seat map (alternative selector)",
-            screenshots,
-          };
-        }
-
-        // If we couldn't find the seat map, take a screenshot of the whole page
-        const pageSS = await this.takeScreenshot("time_slot_page");
-        screenshots.push(pageSS);
-
-        return {
-          success: false,
-          error: "Could not find seat map container",
-          screenshots,
+          sessionId: this.sessionId,
         };
       }
+
+      // Try to find any seats or seat map related elements
+      const seatsContainer = this.page.locator(
+        "div:has(.seat-map__seat), .seat-map, .seating-chart, div[class*='seat'], div[id*='seat'], .theater-screen, .screen"
+      );
+
+      if ((await seatsContainer.count()) > 0) {
+        console.log("Found seat container");
+        const seatMapSS = await this.takeScreenshot(
+          "seat_map",
+          "div:has(.seat-map__seat), .seat-map, .seating-chart, div[class*='seat'], div[id*='seat'], .theater-screen, .screen"
+        );
+        screenshots.push(seatMapSS);
+
+        return {
+          success: true,
+          message: "Found seat map (alternative selector)",
+          screenshots,
+          sessionId: this.sessionId,
+        };
+      }
+
+      // Look for any text that indicates we're on a seating page
+      const pageText = await this.page.content();
+      if (
+        pageText.includes("Select Seats") ||
+        pageText.includes("Choose Seats") ||
+        pageText.includes("Select Seating") ||
+        pageText.includes("Available") ||
+        pageText.includes("Unavailable") ||
+        pageText.includes("Selected")
+      ) {
+        console.log("Found text indicating we're on a seating page");
+        const fullPageSS = await this.takeScreenshot("seating_page_text_found");
+        screenshots.push(fullPageSS);
+
+        return {
+          success: true,
+          message: "Found seating page based on text content",
+          screenshots,
+          sessionId: this.sessionId,
+        };
+      }
+
+      // If we couldn't find any seat map, take a screenshot of the whole page
+      const pageSS = await this.takeScreenshot("seat_page_no_map_found");
+      screenshots.push(pageSS);
+
+      return {
+        success: false,
+        error: "Could not find seat map container after clicking time button",
+        screenshots,
+        sessionId: this.sessionId,
+      };
     } catch (error) {
       console.error(`Error navigating to time slot: ${error}`);
 
@@ -2451,6 +2527,794 @@ class FandangoScraper {
         screenshots,
       };
     }
+  }
+
+  // Method to check if a session is still active
+  static async isSessionActive(sessionId: string): Promise<boolean> {
+    return FandangoScraper.activeScrapers.has(sessionId);
+  }
+
+  // Keep track of active scraper sessions
+  private static activeScrapers = new Map<string, FandangoScraper>();
+
+  // Method to get or create a scraper session
+  static async getOrCreateSession(
+    sessionId?: string
+  ): Promise<FandangoScraper> {
+    // If sessionId is provided and exists in active scrapers, return that scraper
+    if (sessionId && FandangoScraper.activeScrapers.has(sessionId)) {
+      return FandangoScraper.activeScrapers.get(sessionId)!;
+    }
+
+    // Otherwise create a new scraper
+    const scraper = new FandangoScraper(true, 30000);
+    await scraper.initialize();
+
+    // Store in active scrapers
+    FandangoScraper.activeScrapers.set(scraper.sessionId, scraper);
+    return scraper;
+  }
+
+  // Method to continue the session to a seat map
+  async continueToSeatMap(
+    timeSlotUrl: string,
+    selectedTime: string
+  ): Promise<ScraperResult> {
+    if (!this.page) throw new Error("Page not initialized");
+
+    const screenshots: string[] = [];
+
+    try {
+      console.log(
+        `Continuing to seat map from existing session: ${this.sessionId}`
+      );
+      console.log(`Looking for time button: ${selectedTime} on current page`);
+
+      // First take a screenshot of where we are
+      const currentPageSS = await this.takeScreenshot("current_theater_page");
+      screenshots.push(currentPageSS);
+
+      // Log the current URL to help with debugging
+      console.log(`Current page URL: ${this.page.url()}`);
+
+      // Get page content and check HTML structure for debugging
+      const pageContent = await this.page.content();
+      const hasShowtimeBtnClass = pageContent.includes("showtime-btn");
+      const hasShowtimesBtnList = pageContent.includes("showtimes-btn-list");
+      console.log(`Page contains showtime-btn class: ${hasShowtimeBtnClass}`);
+      console.log(
+        `Page contains showtimes-btn-list class: ${hasShowtimesBtnList}`
+      );
+
+      // Get a list of all elements that might be time buttons for debugging
+      const potentialTimeElements = await this.page.evaluate(() => {
+        const elements = Array.from(
+          document.querySelectorAll("a, button, span, div")
+        )
+          .filter((el) => {
+            const text = el.textContent?.trim() || "";
+            // Match formats like 12:00p,1:30PM, 10:45, etc.
+            return text.match(/^\d{1,2}[:.]?\d{0,2}\s*[ap]?m?$/i) !== null;
+          })
+          .map((el) => ({
+            tag: el.tagName,
+            text: el.textContent?.trim() || "",
+            classes: el.className,
+            id: el.id,
+            href: el instanceof HTMLAnchorElement ? el.href : "",
+            rect: el.getBoundingClientRect().toJSON(),
+          }));
+        return elements;
+      });
+
+      console.log(
+        `Found ${potentialTimeElements.length} potential time elements:`,
+        JSON.stringify(potentialTimeElements, null, 2)
+      );
+
+      // Take a screenshot highlighting all potential time elements
+      await this.page.evaluate(() => {
+        Array.from(document.querySelectorAll("a, button, span, div"))
+          .filter((el) => {
+            const text = el.textContent?.trim() || "";
+            return text.match(/^\d{1,2}[:.]?\d{0,2}\s*[ap]?m?$/i) !== null;
+          })
+          .forEach((el) => {
+            (el as HTMLElement).style.border = "3px dashed orange";
+            (el as HTMLElement).style.backgroundColor =
+              "rgba(255, 165, 0, 0.2)";
+          });
+      });
+
+      const potentialTimesSS = await this.takeScreenshot(
+        "potential_time_elements"
+      );
+      screenshots.push(potentialTimesSS);
+
+      // Wait for showtime buttons to be available with a short timeout
+      try {
+        await this.page.waitForSelector(
+          ".showtimes-btn-list, .showtime-btn, a[class*='time'], button[class*='time']",
+          {
+            timeout: 5000,
+          }
+        );
+        console.log("Found at least one possible time button selector");
+      } catch (e) {
+        console.log("Timed out waiting for standard time button selectors");
+      }
+
+      // Create more comprehensive selector variations including data attributes and partial text matches
+      const normalizedTime = selectedTime
+        .replace(/\s+/g, "")
+        .replace(":", "")
+        .toLowerCase();
+      const timeWithoutColon = selectedTime.replace(":", "");
+
+      const selectorVariations = [
+        // Exact attribute matches
+        `.showtimes-btn-list a.btn.showtime-btn[aria-label*="${selectedTime}"]`,
+        `.showtimes-btn-list a.btn.showtime-btn:has-text("${selectedTime}")`,
+        `.showtimes-btn-list a.showtime-btn:has-text("${selectedTime}")`,
+
+        // More general text-based selectors
+        `a:text("${selectedTime}")`,
+        `a:text-is("${selectedTime}")`,
+        `button:text("${selectedTime}")`,
+        `span:text("${selectedTime}")`,
+
+        // Variations of time format (12:00p vs 12:00 PM)
+        `a:text("${timeWithoutColon}")`,
+        `a:text-is("${timeWithoutColon}")`,
+
+        // Data attributes that might contain time
+        `a[data-time*="${selectedTime}"]`,
+        `a[data-showtime*="${selectedTime}"]`,
+        `a[data-value*="${selectedTime}"]`,
+
+        // General elements with matching text
+        `[aria-label*="${selectedTime}"]`,
+        `a[href*="${selectedTime.replace(":", "%3A")}"]`,
+      ];
+
+      // Try each selector variation
+      let foundButton = null;
+      for (const selector of selectorVariations) {
+        console.log(`Trying selector: ${selector}`);
+        try {
+          const buttons = await this.page.$$(selector);
+          console.log(
+            `Found ${buttons.length} buttons with selector: ${selector}`
+          );
+
+          if (buttons.length > 0) {
+            foundButton = buttons[0];
+            console.log(`Found button with selector: ${selector}`);
+            break;
+          }
+        } catch (error) {
+          console.log(`Error with selector ${selector}:`, error);
+        }
+      }
+
+      // If no button found with any selector, try a different approach
+      if (!foundButton) {
+        console.log(
+          "No direct match found with selectors, trying all potential time elements"
+        );
+
+        // Try to find the button using the potential time elements identified earlier
+        if (potentialTimeElements.length > 0) {
+          const timeMatches = potentialTimeElements.filter((el) => {
+            // Normalize both strings for comparison
+            const elTimeNormalized = el.text
+              .replace(/\s+/g, "")
+              .replace(":", "")
+              .toLowerCase();
+            const selectedTimeNormalized = selectedTime
+              .replace(/\s+/g, "")
+              .replace(":", "")
+              .toLowerCase();
+
+            // Check if the element text contains the selected time
+            return (
+              elTimeNormalized.includes(selectedTimeNormalized) ||
+              selectedTimeNormalized.includes(elTimeNormalized)
+            );
+          });
+
+          console.log(
+            `Found ${timeMatches.length} potential matches after text normalization`
+          );
+
+          if (timeMatches.length > 0) {
+            // Find the element with this text on the page
+            for (const match of timeMatches) {
+              const exactSelector = match.id
+                ? `#${match.id}`
+                : `${match.tag.toLowerCase()}:has-text("${match.text}")`;
+
+              console.log(
+                `Trying to find element with selector: ${exactSelector}`
+              );
+              const matchedElements = await this.page.$$(exactSelector);
+
+              if (matchedElements.length > 0) {
+                foundButton = matchedElements[0];
+                console.log(`Found matching element using text: ${match.text}`);
+                break;
+              }
+            }
+          }
+        }
+
+        // If still no match, try finding all possible time-like buttons
+        if (!foundButton) {
+          console.log(
+            "Still no match found, trying all possible time-like buttons"
+          );
+
+          // Get all elements with time-like text using page.$eval which has better typing
+          const elementHandle = await this.page.evaluateHandle(
+            (selectedTime) => {
+              // First try standard time buttons
+              const allElements = Array.from(
+                document.querySelectorAll("a, button, span")
+              );
+
+              // Try to find exact match first
+              for (const el of allElements) {
+                const text = el.textContent?.trim() || "";
+                if (text === selectedTime.trim()) {
+                  console.log(`Found exact text match: ${text}`);
+                  return el;
+                }
+              }
+
+              // Try to find partial match
+              for (const el of allElements) {
+                const text = el.textContent?.trim() || "";
+                // Skip elements with very long text
+                if (text.length > 10) continue;
+
+                // Convert both to a standard format for comparison (remove spaces, lowercase)
+                const normalizedElementText = text
+                  .replace(/\s+/g, "")
+                  .replace(":", "")
+                  .toLowerCase();
+                const normalizedSelectedTime = selectedTime
+                  .trim()
+                  .replace(/\s+/g, "")
+                  .replace(":", "")
+                  .toLowerCase();
+
+                if (
+                  normalizedElementText === normalizedSelectedTime ||
+                  (normalizedElementText.includes("a") &&
+                    normalizedSelectedTime.includes("am")) ||
+                  (normalizedElementText.includes("p") &&
+                    normalizedSelectedTime.includes("pm"))
+                ) {
+                  console.log(
+                    `Found normalized text match: ${text} ≈ ${selectedTime}`
+                  );
+                  return el;
+                }
+              }
+
+              // No match found
+              return null;
+            },
+            selectedTime
+          );
+
+          // Check if we got a valid element or null
+          const elementValue = await elementHandle.jsonValue();
+          if (elementValue !== null) {
+            foundButton = elementHandle as ElementHandle<HTMLElement>;
+            console.log("Found button using evaluateHandle");
+          } else {
+            await elementHandle.dispose();
+            foundButton = null;
+          }
+        }
+      }
+
+      // If we found a button to click
+      if (foundButton) {
+        try {
+          // Make sure we have an ElementHandle<HTMLElement>
+          const buttonElement = foundButton as ElementHandle<HTMLElement>;
+
+          // Highlight the button
+          await buttonElement.evaluate((node) => {
+            node.style.border = "5px solid red";
+            node.style.boxShadow = "0 0 15px red";
+            node.style.zIndex = "9999";
+          });
+
+          const buttonSS = await this.takeScreenshot("time_button_found");
+          screenshots.push(buttonSS);
+
+          // Get button details for debugging
+          const buttonDetails = await buttonElement.evaluate((node) => {
+            return {
+              tag: node.tagName,
+              text: node.textContent?.trim() || "",
+              className: node.className,
+              id: node.id,
+              href:
+                node.tagName === "A" ? (node as HTMLAnchorElement).href : "",
+              attributes: Array.from(node.attributes || [])
+                .map((attr) => `${attr.name}="${attr.value}"`)
+                .join(", "),
+            };
+          });
+          console.log(
+            `Found button details:`,
+            JSON.stringify(buttonDetails, null, 2)
+          );
+
+          // Click the button
+          console.log("Clicking the found time button");
+
+          // First, mimic human behavior before clicking
+          // Scroll the button into view and wait a bit
+          await buttonElement.scrollIntoViewIfNeeded();
+          await this.page.waitForTimeout(Math.random() * 800 + 500); // Random wait 500-1300ms
+
+          // Add a simple hover effect before clicking
+          try {
+            await buttonElement.hover();
+            await this.page.waitForTimeout(Math.random() * 400 + 200); // Random wait 200-600ms
+          } catch (e) {
+            console.log("Couldn't hover over button, continuing anyway");
+          }
+
+          // Get the URL from the button before clicking, in case we need to use it later
+          let fallbackUrl = "";
+          try {
+            fallbackUrl = (await buttonElement.getAttribute("href")) || "";
+            console.log(`Button URL before click: ${fallbackUrl}`);
+          } catch (e) {
+            console.log("Couldn't get button URL, continuing anyway");
+          }
+
+          // Now click the button
+          try {
+            await buttonElement.click();
+            console.log("Successfully clicked the button");
+          } catch (e) {
+            console.log(`Error clicking the button: ${e}`);
+
+            // If direct click fails, try using page.evaluate to click it
+            if (buttonDetails.id) {
+              console.log(
+                `Trying alternate click method using ID: ${buttonDetails.id}`
+              );
+              await this.page.evaluate((id) => {
+                const element = document.getElementById(id);
+                if (element) element.click();
+              }, buttonDetails.id);
+            } else if (buttonDetails.href) {
+              console.log(
+                `Trying to navigate directly to href: ${buttonDetails.href}`
+              );
+              await this.page.goto(buttonDetails.href, {
+                waitUntil: "domcontentloaded",
+              });
+            }
+          }
+
+          // Wait for navigation and page to load with timeout
+          try {
+            await this.waitForNavigation();
+          } catch (e) {
+            console.log(
+              "Navigation timeout after button click, continuing anyway"
+            );
+          }
+
+          // Check if we were redirected to a deny page or got a 403
+          const currentUrl = this.page.url();
+          const pageContent = await this.page.content();
+
+          // Take screenshot after clicking
+          const afterClickSS = await this.takeScreenshot(
+            "after_time_button_click"
+          );
+          screenshots.push(afterClickSS);
+
+          if (
+            currentUrl.includes("deny") ||
+            pageContent.includes("Access Denied") ||
+            pageContent.includes("Permission Denied") ||
+            pageContent.includes("403 Forbidden")
+          ) {
+            console.log("Access denied detected after clicking time button");
+
+            // If we have a fallback URL, try direct navigation with enhanced headers
+            if (fallbackUrl) {
+              console.log(
+                `Trying direct navigation to fallback URL: ${fallbackUrl}`
+              );
+
+              // Set enhanced headers to appear more like a real browser
+              await this.enhanceHeadersForDirectAccess();
+
+              // Navigate to the URL
+              try {
+                await this.page.goto(fallbackUrl, {
+                  waitUntil: "domcontentloaded",
+                  timeout: this.timeout,
+                });
+
+                const fallbackSS = await this.takeScreenshot(
+                  "fallback_direct_navigation"
+                );
+                screenshots.push(fallbackSS);
+
+                // Check for seat map after direct navigation
+                if (await this.checkForSeatMap(screenshots)) {
+                  return {
+                    success: true,
+                    message: "Found seat map after direct navigation fallback",
+                    screenshots,
+                    sessionId: this.sessionId,
+                  };
+                }
+              } catch (e) {
+                console.log(`Error in fallback navigation: ${e}`);
+              }
+            }
+
+            // Return a helpful message about the restriction
+            return {
+              success: false,
+              error:
+                "Fandango restricts automated access to seat maps. This is normal and doesn't affect the showtime information.",
+              message:
+                "For seat availability, please visit the Fandango website directly using the showtime link.",
+              screenshots,
+              sessionId: this.sessionId,
+            };
+          }
+
+          // Sometimes there might be a "Continue" button before the seat map
+          try {
+            const continueButton = this.page.locator(
+              "button:has-text('Continue'), .fd-cta-container button, .btn-primary:has-text('Continue'), a:has-text('Continue')"
+            );
+            if ((await continueButton.count()) > 0) {
+              console.log("Found Continue button, clicking it");
+              await continueButton.click();
+              await this.waitForNavigation();
+              await this.page.waitForTimeout(1000);
+
+              const afterContinueSS = await this.takeScreenshot(
+                "after_continue_click"
+              );
+              screenshots.push(afterContinueSS);
+            }
+          } catch (error) {
+            console.log(
+              "No Continue button found or error clicking it:",
+              error
+            );
+          }
+        } catch (error) {
+          console.error("Error handling time button:", error);
+          screenshots.push(await this.takeScreenshot("time_button_error"));
+          return {
+            success: false,
+            error: `Failed to click time button: ${error}`,
+            screenshots,
+            sessionId: this.sessionId,
+          };
+        }
+      } else {
+        // We couldn't find any button that matches
+        console.log("Failed to find any matching time button on the page");
+
+        // Create a debugging file with HTML structure
+        const htmlStructure = await this.page.evaluate(() => {
+          // Get a simplified representation of the page structure
+          function getNodePath(
+            element: Element,
+            maxDepth = 3,
+            currentDepth = 0
+          ): any {
+            if (!element || currentDepth > maxDepth) return null;
+
+            const children = Array.from(element.children)
+              .map((child) => getNodePath(child, maxDepth, currentDepth + 1))
+              .filter(Boolean);
+
+            return {
+              tag: element.tagName,
+              id: element.id || undefined,
+              classes: element.className
+                ? String(element.className).split(" ").filter(Boolean)
+                : undefined,
+              text:
+                element.childNodes.length === 1 &&
+                element.childNodes[0].nodeType === 3
+                  ? element.textContent?.trim()
+                  : undefined,
+              children: children.length > 0 ? children : undefined,
+            };
+          }
+
+          return getNodePath(document.body);
+        });
+
+        console.log(
+          "Page structure sample:",
+          JSON.stringify(htmlStructure, null, 2).substring(0, 500) + "..."
+        );
+
+        // Take a full page screenshot to see what's there
+        const fullPageSS = await this.takeScreenshot(
+          "full_page_no_button_found"
+        );
+        screenshots.push(fullPageSS);
+
+        // Return all available times if any were found
+        await this.page.evaluate(() => {
+          document.querySelectorAll("a, button, span").forEach((el) => {
+            if (
+              el.textContent &&
+              el.textContent.trim().match(/^\d{1,2}[:.]?\d{0,2}\s*[ap]?m?$/i)
+            ) {
+              (el as HTMLElement).style.border = "2px solid blue";
+              (el as HTMLElement).style.backgroundColor =
+                "rgba(0, 0, 255, 0.2)";
+            }
+          });
+        });
+
+        const highlightedTimesSS = await this.takeScreenshot(
+          "possible_times_highlighted"
+        );
+        screenshots.push(highlightedTimesSS);
+
+        // If the URL has a movie ID and theater ID in it, try direct navigation as fallback
+        if (timeSlotUrl.includes("mid=") && timeSlotUrl.includes("tid=")) {
+          console.log(
+            "Attempting direct navigation to time slot URL as fallback"
+          );
+          await this.page.goto(timeSlotUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: this.timeout,
+          });
+
+          const directNavSS = await this.takeScreenshot(
+            "direct_navigation_fallback"
+          );
+          screenshots.push(directNavSS);
+
+          // Check for seat map after direct navigation
+          if (await this.checkForSeatMap(screenshots)) {
+            return {
+              success: true,
+              message: "Found seat map after direct navigation fallback",
+              screenshots,
+              sessionId: this.sessionId,
+            };
+          }
+        }
+
+        this.hasError = true;
+        return {
+          success: false,
+          error: `Could not find time button matching: ${selectedTime} on the page`,
+          screenshots,
+          sessionId: this.sessionId,
+        };
+      }
+
+      // Check for seat map after successful button click
+      if (await this.checkForSeatMap(screenshots)) {
+        return {
+          success: true,
+          message: "Successfully found seat map after clicking time button",
+          screenshots,
+          sessionId: this.sessionId,
+        };
+      }
+
+      // If we couldn't find any seat map, take a screenshot of the whole page
+      const pageSS = await this.takeScreenshot("seat_page_no_map_found");
+      screenshots.push(pageSS);
+
+      return {
+        success: false,
+        error: "Could not find seat map container after clicking time button",
+        screenshots,
+        sessionId: this.sessionId,
+      };
+    } catch (error) {
+      console.error(`Error clicking time button: ${error}`);
+      const errorSS = await this.takeScreenshot("time_button_error");
+      screenshots.push(errorSS);
+
+      this.hasError = true;
+      return {
+        error: `Failed to click time button: ${error}`,
+        screenshots,
+        sessionId: this.sessionId,
+      };
+    }
+  }
+
+  // Helper method to check for seat maps with various selectors
+  private async checkForSeatMap(screenshots: string[]): Promise<boolean> {
+    if (!this.page) return false;
+
+    // Look for seat map containers
+    const seatMapZoom = this.page.locator("#mapZoom.seat-map__container");
+    if ((await seatMapZoom.count()) > 0) {
+      console.log("Found seat map container with ID 'mapZoom'");
+      const seatMapSS = await this.takeScreenshot(
+        "seat_map_zoom",
+        "#mapZoom.seat-map__container"
+      );
+      screenshots.push(seatMapSS);
+      return true;
+    }
+
+    // Try other seat map container selectors
+    const seatMapContainer = this.page.locator(
+      ".seat-map__container, .seat-map, #SeatingContainer, #seatmap"
+    );
+    if ((await seatMapContainer.count()) > 0) {
+      console.log("Found general seat map container");
+      const seatMapSS = await this.takeScreenshot(
+        "seat_map",
+        ".seat-map__container, .seat-map, #SeatingContainer, #seatmap"
+      );
+      screenshots.push(seatMapSS);
+      return true;
+    }
+
+    // Try to find any seats or seat map related elements
+    const seatsContainer = this.page.locator(
+      "div:has(.seat-map__seat), .seat-map, .seating-chart, div[class*='seat'], div[id*='seat'], .theater-screen, .screen"
+    );
+
+    if ((await seatsContainer.count()) > 0) {
+      console.log("Found seat container");
+      const seatMapSS = await this.takeScreenshot(
+        "seat_map",
+        "div:has(.seat-map__seat), .seat-map, .seating-chart, div[class*='seat'], div[id*='seat'], .theater-screen, .screen"
+      );
+      screenshots.push(seatMapSS);
+      return true;
+    }
+
+    // Look for any text that indicates we're on a seating page
+    const pageText = await this.page.content();
+    if (
+      pageText.includes("Select Seats") ||
+      pageText.includes("Choose Seats") ||
+      pageText.includes("Select Seating") ||
+      pageText.includes("Available") ||
+      pageText.includes("Unavailable") ||
+      pageText.includes("Selected")
+    ) {
+      console.log("Found text indicating we're on a seating page");
+      const fullPageSS = await this.takeScreenshot("seating_page_text_found");
+      screenshots.push(fullPageSS);
+      return true;
+    }
+
+    return false;
+  }
+
+  // Helper method to convert time string (12:00p, 10:15 PM, etc.) to minutes since midnight
+  private timeStringToMinutes(timeStr: string): number {
+    try {
+      // Normalize the time string
+      const normalized = timeStr.trim().toLowerCase();
+
+      // Extract hours, minutes and am/pm
+      let hours = 0;
+      let minutes = 0;
+      let isPM = false;
+
+      // Check for 'a' or 'p' suffix format
+      if (normalized.endsWith("a") || normalized.endsWith("am")) {
+        isPM = false;
+        const timePart = normalized.replace("am", "").replace("a", "");
+        if (timePart.includes(":")) {
+          [hours, minutes] = timePart.split(":").map((n) => parseInt(n, 10));
+        } else {
+          hours = parseInt(timePart, 10);
+        }
+      } else if (normalized.endsWith("p") || normalized.endsWith("pm")) {
+        isPM = true;
+        const timePart = normalized.replace("pm", "").replace("p", "");
+        if (timePart.includes(":")) {
+          [hours, minutes] = timePart.split(":").map((n) => parseInt(n, 10));
+        } else {
+          hours = parseInt(timePart, 10);
+        }
+      }
+      // Just numeric format
+      else if (normalized.includes(":")) {
+        [hours, minutes] = normalized.split(":").map((n) => parseInt(n, 10));
+        // Assume PM for times like 1:00-7:00 without AM/PM indicator
+        isPM = hours < 8;
+      } else {
+        // Try to parse 4-digit format like "1200"
+        if (normalized.length === 4) {
+          hours = parseInt(normalized.substring(0, 2), 10);
+          minutes = parseInt(normalized.substring(2, 4), 10);
+          isPM = hours < 8;
+        } else if (normalized.length <= 2) {
+          hours = parseInt(normalized, 10);
+          isPM = hours < 8;
+        }
+      }
+
+      // Convert to 24-hour format
+      if (isPM && hours < 12) hours += 12;
+      if (!isPM && hours === 12) hours = 0;
+
+      return hours * 60 + minutes;
+    } catch (e) {
+      console.error(`Error parsing time string: ${timeStr}`, e);
+      return -1;
+    }
+  }
+
+  // Enhance browser headers to look more like a real browser for direct access attempts
+  private async enhanceHeadersForDirectAccess() {
+    if (!this.page) return;
+
+    // Generate a plausible user agent
+    const userAgents = [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    ];
+    const randomUserAgent =
+      userAgents[Math.floor(Math.random() * userAgents.length)];
+
+    // Create plausible browser headers
+    const headers = {
+      "User-Agent": randomUserAgent,
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      Connection: "keep-alive",
+      "Upgrade-Insecure-Requests": "1",
+      "Cache-Control": "max-age=0",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "same-origin",
+      "Sec-Fetch-User": "?1",
+      Pragma: "no-cache",
+      Referer: "https://www.fandango.com/",
+      "sec-ch-ua": `"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"`,
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "Windows",
+    };
+
+    // Set the headers
+    await this.page.setExtraHTTPHeaders(headers);
+
+    // Add some common cookies that might help
+    await this.manageCookies();
+
+    // Emulate normal user behavior by briefly scrolling
+    await this.page.evaluate(() => {
+      window.scrollTo(0, Math.floor(Math.random() * 100) + 50);
+    });
+
+    // Wait a random amount of time to look more human
+    await this.page.waitForTimeout(Math.floor(Math.random() * 800) + 500);
   }
 }
 

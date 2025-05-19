@@ -53,7 +53,11 @@ export default function ResultsDisplay({ results }: ResultsDisplayProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ timeSlotUrl: timeSlot.url }),
+        body: JSON.stringify({
+          timeSlotUrl: timeSlot.url,
+          sessionId: results?.sessionId,
+          selectedTime: timeSlot.time,
+        }),
       });
 
       const seatMapData = await response.json();

@@ -6,9 +6,10 @@ const SCRAPER_TIMEOUT = 30000; // 30 seconds
 
 export async function POST(req: NextRequest) {
   let scraper: FandangoScraper | null = null;
+  let newSession = false;
 
   try {
-    const { timeSlotUrl } = await req.json();
+    const { timeSlotUrl, sessionId, selectedTime } = await req.json();
 
     if (!timeSlotUrl) {
       return NextResponse.json(
@@ -17,33 +18,57 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Initialize the scraper with reduced timeout
-    scraper = new FandangoScraper(true, SCRAPER_TIMEOUT);
-    const initialized = await scraper.initialize();
-
-    if (!initialized) {
+    if (!selectedTime) {
       return NextResponse.json(
-        { error: "Failed to initialize scraper" },
-        { status: 500 }
+        { error: "No selected time provided" },
+        { status: 400 }
       );
     }
 
-    // First, set up cookies and make an initial visit to fandango.com
-    await scraper.navigateToFandango();
-    await scraper.manageCookies();
+    // Try to reuse existing session or create a new one
+    try {
+      if (sessionId) {
+        console.log(`Attempting to reuse session: ${sessionId}`);
+        scraper = await FandangoScraper.getOrCreateSession(sessionId);
+      } else {
+        console.log("No session ID provided, creating new session");
+        scraper = await FandangoScraper.getOrCreateSession();
+        newSession = true;
+      }
+    } catch (error) {
+      console.log(`Error getting session, creating new: ${error}`);
+      scraper = await FandangoScraper.getOrCreateSession();
+      newSession = true;
+    }
 
-    // Navigate to the time slot URL using the safer method
+    // If it's a new session, we need to initialize it
+    if (newSession) {
+      await scraper.navigateToFandango();
+      await scraper.manageCookies();
+    }
+
+    // Use the timeout for safety
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
         reject(new Error("Scraper operation timed out"));
-      }, SCRAPER_TIMEOUT * 1.5); // Give a bit extra time than the internal timeout
+      }, SCRAPER_TIMEOUT * 1.5);
     });
 
-    // Use the safe navigation method that handles access denied better
-    const results = (await Promise.race([
-      scraper.navigateToTimeSlotSafely(timeSlotUrl),
-      timeoutPromise,
-    ])) as any; // Use type assertion to handle promise race result
+    // Use the appropriate method based on whether we're continuing a session
+    let results;
+    if (newSession) {
+      // Use the traditional method for new sessions
+      results = (await Promise.race([
+        scraper.navigateToTimeSlotSafely(timeSlotUrl),
+        timeoutPromise,
+      ])) as any;
+    } else {
+      // For existing sessions, use the continueToSeatMap method with the selected time
+      results = (await Promise.race([
+        scraper.continueToSeatMap(timeSlotUrl, selectedTime),
+        timeoutPromise,
+      ])) as any;
+    }
 
     // Return a useful message for access denied errors
     if (
@@ -57,6 +82,7 @@ export async function POST(req: NextRequest) {
         message:
           "Fandango restricts access to seat information for third-party applications.",
         screenshots: results.screenshots || [],
+        sessionId: results.sessionId, // Return the session ID
       });
     }
 
@@ -88,8 +114,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   } finally {
-    // Clean up resources
-    if (scraper) {
+    // Only close the scraper for new sessions with errors
+    // We want to keep existing sessions alive
+    if (scraper && newSession && scraper.hasError) {
       await scraper.close();
     }
   }

@@ -1,0 +1,107 @@
+/* Common components */
+.gradientButton {
+  position: relative;
+  background-color: var(--bg-color);
+  border: none;
+  border-radius: 9999px;
+  padding: 10px 20px;
+  color: var(--text-color);
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.gradientButton::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 9999px;
+  padding: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--primary-gradient-start),
+    var(--primary-gradient-middle),
+    var(--primary-gradient-end)
+  );
+  background-size: 200% 200%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: gradientShift 6s ease infinite;
+}
+
+.gradientButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.messageContainer {
+  position: relative;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 10px 0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  background-color: var(--bg-color);
+}
+
+.gradientCard {
+  position: relative;
+  border-radius: 16px;
+  background-color: var(--bg-color);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.gradientCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--primary-gradient-start),
+    var(--primary-gradient-middle),
+    var(--primary-gradient-end)
+  );
+  background-size: 200% 200%;
+  animation: gradientShift 6s ease infinite;
+}
+
+.scrollButton {
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  color: var(--gray-text);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.scrollButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.gradientText {
+  background: linear-gradient(
+    90deg,
+    var(--primary-gradient-start),
+    var(--primary-gradient-middle),
+    var(--primary-gradient-end)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-size: 200% 200%;
+  animation: gradientShift 6s ease infinite;
+  font-weight: bold;
+}

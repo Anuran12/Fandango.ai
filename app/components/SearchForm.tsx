@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { type ScraperQuery } from "@/lib/fandangoScraper";
+import styles from "./searchform.module.css";
 
 interface SearchFormProps {
   onSubmit: (query: string, params: ScraperQuery) => void;
@@ -14,6 +15,7 @@ export default function SearchForm({
   isProcessing,
 }: SearchFormProps) {
   const [query, setQuery] = useState("");
+  const [searchFinished, setSearchFinished] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Function to trigger scrolling in the parent container
@@ -39,6 +41,13 @@ export default function SearchForm({
       inputRef.current.focus();
     }
   }, []);
+
+  // Reset search finished state when query changes
+  useEffect(() => {
+    if (query) {
+      setSearchFinished(false);
+    }
+  }, [query]);
 
   // Trigger scrolling when focus changes
   useEffect(() => {
@@ -78,7 +87,9 @@ export default function SearchForm({
 
       const params = await response.json();
       onSubmit(query, params);
-      setQuery(""); // Clear input after submitting
+
+      // Mark search as finished
+      setSearchFinished(true);
 
       // Trigger scroll after submitting
       setTimeout(triggerScroll, 50);
@@ -95,38 +106,72 @@ export default function SearchForm({
     triggerScroll();
   };
 
+  const hasInputValue = query.trim().length > 0;
+
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-4xl">
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={handleInputChange}
-          placeholder="Ask about movies, theaters, or showtimes..."
-          className="w-full p-3.5 pl-4 pr-14 border border-gray-300 rounded-2xl text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300 focus:border-gray-300 shadow-sm text-sm"
-          disabled={isProcessing}
-        />
-        <button
-          type="submit"
-          className="absolute right-1.5 bottom-1.5 p-2 text-gray-500 hover:text-gray-700 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
-          disabled={isProcessing || !query.trim()}
-          onClick={triggerScroll}
-        >
-          {isProcessing ? (
-            <div className="animate-spin h-5 w-5 border-t-2 border-b-2 border-gray-600 rounded-full"></div>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-5 h-5"
-              aria-hidden="true"
-            >
-              <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-            </svg>
+      <div className={styles.container}>
+        <div className={styles.searchContainer}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleInputChange}
+            placeholder="What else can I help with?"
+            className={styles.input}
+            disabled={isProcessing}
+          />
+
+          {/* Show search finished tag after search completion */}
+          {searchFinished && !isProcessing && (
+            <div className={styles.button}>
+              <span>search finished</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                className={styles.icon}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                />
+              </svg>
+            </div>
           )}
-        </button>
+
+          {/* Show send button, disabled when empty */}
+          {!searchFinished && !isProcessing && (
+            <button
+              type="submit"
+              className={`${styles.sendButton} ${
+                !hasInputValue ? styles.disabled : ""
+              }`}
+              onClick={triggerScroll}
+              aria-label="Send"
+              disabled={!hasInputValue}
+            >
+              <svg
+                className={styles.sendIcon}
+                viewBox="0 0 1024 1024"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M0 950.857143l1024-438.857143L0 73.142857v341.333333l731.428571 97.52381-731.428571 97.52381z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Show spinner when processing */}
+          {isProcessing && (
+            <div className={styles.spinner}>
+              <div className="animate-spin h-5 w-5 border-t-2 border-b-2 border-blue-600 rounded-full"></div>
+            </div>
+          )}
+        </div>
       </div>
     </form>
   );

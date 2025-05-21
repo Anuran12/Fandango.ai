@@ -5,9 +5,10 @@ import { Toaster, toast } from "react-hot-toast";
 import { type ScraperQuery, type ScraperResult } from "@/lib/fandangoScraper";
 
 import SearchForm from "./components/SearchForm";
-import ParametersDisplay from "./components/ParametersDisplay";
 import ResultsDisplay from "./components/ResultsDisplay";
 import InfoSection from "./components/InfoSection";
+import { FandangoLogo } from "./components/FandangoLogo";
+import styles from "./theme.module.css";
 
 // Add a UserQueryMessage component
 const UserQueryMessage = ({ query }: { query: string }) => {
@@ -15,8 +16,10 @@ const UserQueryMessage = ({ query }: { query: string }) => {
 
   return (
     <div className="w-full my-4 flex justify-end">
-      <div className="bg-blue-600 text-white p-4 rounded-lg shadow-sm max-w-[80%]">
-        <p className="whitespace-pre-wrap break-words">{query}</p>
+      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 p-[2.5px] rounded-2xl">
+        <div className="rounded-2xl bg-white p-4 text-gray-800">
+          <p className="whitespace-pre-wrap break-words">{query}</p>
+        </div>
       </div>
     </div>
   );
@@ -26,12 +29,12 @@ const UserQueryMessage = ({ query }: { query: string }) => {
 const ScrollToBottomButton = ({ onClick }: { onClick: () => void }) => (
   <button
     onClick={onClick}
-    className="fixed bottom-20 right-4 p-2 bg-gray-200 rounded-full shadow-md hover:bg-gray-300 focus:outline-none z-50"
+    className={`${styles.scrollButton} fixed bottom-20 right-4 z-50`}
     aria-label="Scroll to bottom"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className="h-6 w-6 text-gray-600"
+      className="h-6 w-6"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -149,21 +152,44 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white flex flex-col relative">
-      <Toaster position="bottom-right" />
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            borderRadius: "10px",
+            background: "#fff",
+            color: "#333",
+            boxShadow: "0 3px 10px rgba(0, 0, 0, 0.1)",
+            border: "1px solid #f0f0f0",
+          },
+          success: {
+            iconTheme: {
+              primary: "#6BB76D",
+              secondary: "#fff",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "#E53E3E",
+              secondary: "#fff",
+            },
+          },
+        }}
+      />
 
-      {/* ChatGPT-style header - now fixed */}
-      <div className="fixed top-0 left-0 w-full border-b border-gray-200 py-3 px-4 flex items-center justify-between bg-white z-10">
-        <div className="flex items-center">
-          <h1 className="text-xl font-medium text-gray-800 flex items-center">
-            <span className="mr-2">🎬</span> Fandango Explorer
-          </h1>
+      {/* Header with Fandango logo */}
+      <div className="fixed top-0 left-0 w-full py-3 px-4 flex items-center justify-center bg-white z-10 border-b border-gray-100 shadow-sm">
+        <div className="flex justify-center items-center">
+          <FandangoLogo />
         </div>
-        <button
-          onClick={handleClearResults}
-          className="text-gray-500 hover:text-gray-700 px-2 py-1 rounded text-sm"
-        >
-          {extractedParams || scraperResults ? "Clear chat" : ""}
-        </button>
+        {(extractedParams || scraperResults) && (
+          <button
+            onClick={handleClearResults}
+            className={`${styles.gradientButton} py-1 px-3 text-xs !absolute right-4 top-3`}
+          >
+            Clear chat
+          </button>
+        )}
       </div>
 
       {/* Scrollable content area with scroll-snap - add top padding for fixed header */}
@@ -184,8 +210,6 @@ export default function Home() {
             {/* Display the user query if available */}
             {currentQuery && <UserQueryMessage query={currentQuery} />}
 
-            <ParametersDisplay params={extractedParams} />
-
             {/* Add ref to the results section */}
             <div ref={resultsRef}>
               <ResultsDisplay results={scraperResults} />
@@ -195,7 +219,7 @@ export default function Home() {
 
             {isProcessing && (
               <div className="my-6 flex flex-col items-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#a259ff]"></div>
                 <p className="mt-2 text-gray-600 text-sm">Searching...</p>
               </div>
             )}
@@ -212,7 +236,7 @@ export default function Home() {
       )}
 
       {/* Fixed input area at the bottom - ChatGPT style */}
-      <div className="fixed bottom-0 w-full shadow-md pb-5 px-4 bg-white">
+      <div className="fixed bottom-0 w-full shadow-md pb-8 px-4 bg-white">
         <div className="container mx-auto flex justify-center">
           <SearchForm onSubmit={handleSearch} isProcessing={isProcessing} />
         </div>

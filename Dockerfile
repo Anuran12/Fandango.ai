@@ -10,15 +10,11 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont \
     wget \
-    unzip
-
-# Set environment variables for Playwright
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
-# Create Playwright browser dirs and symlink to system Chromium
-RUN mkdir -p /root/.cache/ms-playwright/chromium_headless_shell-1169/chrome-linux/ && \
-    ln -s /usr/bin/chromium-browser /root/.cache/ms-playwright/chromium_headless_shell-1169/chrome-linux/headless_shell
+    unzip \
+    bash \
+    fontconfig \
+    dbus \
+    libc6-compat
 
 # Create app directory
 WORKDIR /app
@@ -29,15 +25,21 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
+# Add Playwright browsers explicitly
+RUN npx playwright install chromium --with-deps
+
 # Copy the rest of the application
 COPY . .
 
 # Build the Next.js application
 RUN npm run build
 
-# Expose the port the app runs on
-EXPOSE 3000
+# Set Playwright to use installed browser
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Command to run the application
-# Use standalone server instead of 'npm start'
+# Expose the port the app runs on
+EXPOSE 10000
+ENV PORT=10000
+
+# Use standalone server mode
 CMD ["node", ".next/standalone/server.js"] 

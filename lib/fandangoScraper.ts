@@ -71,9 +71,20 @@ class FandangoScraper {
 
   async initialize() {
     try {
+      // Check if running in Docker/Render environment
+      const isDocker =
+        process.env.CONTAINER === "true" || process.env.RENDER === "true";
+      console.log(`Running in Docker/Render environment: ${isDocker}`);
+
       this.browser = await chromium.launch({
-        headless: this.headless,
+        headless: true, // Always use headless in Docker
         timeout: this.timeout,
+        args: [
+          "--disable-dev-shm-usage",
+          "--disable-setuid-sandbox",
+          "--no-sandbox",
+          "--disable-gpu",
+        ],
       });
       this.context = await this.browser.newContext({
         viewport: { width: 1280, height: 720 },

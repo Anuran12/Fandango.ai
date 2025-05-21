@@ -516,7 +516,7 @@ class FandangoScraper {
           theaterName = await theaterElement.innerText();
         }
       } catch (error) {
-        console.log("Could not extract theater name");
+        console.log("Could not extract theater name" + error);
       }
 
       // Take a screenshot of the whole page for debugging
@@ -570,6 +570,7 @@ class FandangoScraper {
             movieTitle = await movieElement.innerText();
           } catch (error) {
             // Stick with the original movie parameter
+            console.log("Could not extract movie title" + error);
           }
           console.log(`Found movie '${movie}' using selector: ${selector}`);
           break;
@@ -844,7 +845,6 @@ class FandangoScraper {
               const slotTime = slot.time.trim();
               let hours = 0;
               let minutes = 0;
-              let isPM = false;
 
               // Check for 'a' or 'p' suffix format (like "5:10p")
               if (slotTime.endsWith("a")) {
@@ -885,10 +885,10 @@ class FandangoScraper {
               // Check if within time range filter
               if (startTime && endTime) {
                 // Parse start and end times
-                let startHours = parseInt(startTime.slice(0, 2));
-                let startMinutes = parseInt(startTime.slice(2));
-                let endHours = parseInt(endTime.slice(0, 2));
-                let endMinutes = parseInt(endTime.slice(2));
+                const startHours = parseInt(startTime.slice(0, 2));
+                const startMinutes = parseInt(startTime.slice(2));
+                const endHours = parseInt(endTime.slice(0, 2));
+                const endMinutes = parseInt(endTime.slice(2));
 
                 const startTotalMinutes = startHours * 60 + startMinutes;
                 const endTotalMinutes = endHours * 60 + endMinutes;
@@ -984,7 +984,6 @@ class FandangoScraper {
             const slotTime = slot.time.trim();
             let hours = 0;
             let minutes = 0;
-            let isPM = false;
 
             // Check for 'a' or 'p' suffix format (like "5:10p")
             if (slotTime.endsWith("a")) {
@@ -1025,10 +1024,10 @@ class FandangoScraper {
             // Check if within time range filter
             if (startTime && endTime) {
               // Parse start and end times
-              let startHours = parseInt(startTime.slice(0, 2));
-              let startMinutes = parseInt(startTime.slice(2));
-              let endHours = parseInt(endTime.slice(0, 2));
-              let endMinutes = parseInt(endTime.slice(2));
+              const startHours = parseInt(startTime.slice(0, 2));
+              const startMinutes = parseInt(startTime.slice(2));
+              const endHours = parseInt(endTime.slice(0, 2));
+              const endMinutes = parseInt(endTime.slice(2));
 
               const startTotalMinutes = startHours * 60 + startMinutes;
               const endTotalMinutes = endHours * 60 + endMinutes;
@@ -2641,7 +2640,7 @@ class FandangoScraper {
         );
         console.log("Found at least one possible time button selector");
       } catch (e) {
-        console.log("Timed out waiting for standard time button selectors");
+        console.log("Timed out waiting for standard time button selectors" + e);
       }
 
       // Create more comprehensive selector variations including data attributes and partial text matches
@@ -2650,6 +2649,8 @@ class FandangoScraper {
         .replace(":", "")
         .toLowerCase();
       const timeWithoutColon = selectedTime.replace(":", "");
+
+      console.log("Normalized time: " + normalizedTime);
 
       const selectorVariations = [
         // Exact attribute matches
@@ -2868,7 +2869,7 @@ class FandangoScraper {
             await buttonElement.hover();
             await this.page.waitForTimeout(Math.random() * 400 + 200); // Random wait 200-600ms
           } catch (e) {
-            console.log("Couldn't hover over button, continuing anyway");
+            console.log("Couldn't hover over button, continuing anyway" + e);
           }
 
           // Get the URL from the button before clicking, in case we need to use it later
@@ -2877,7 +2878,7 @@ class FandangoScraper {
             fallbackUrl = (await buttonElement.getAttribute("href")) || "";
             console.log(`Button URL before click: ${fallbackUrl}`);
           } catch (e) {
-            console.log("Couldn't get button URL, continuing anyway");
+            console.log("Couldn't get button URL, continuing anyway" + e);
           }
 
           // Now click the button
@@ -2911,7 +2912,7 @@ class FandangoScraper {
             await this.waitForNavigation();
           } catch (e) {
             console.log(
-              "Navigation timeout after button click, continuing anyway"
+              "Navigation timeout after button click, continuing anyway" + e
             );
           }
 
@@ -3019,16 +3020,24 @@ class FandangoScraper {
         // Create a debugging file with HTML structure
         const htmlStructure = await this.page.evaluate(() => {
           // Get a simplified representation of the page structure
+          interface NodePathStructure {
+            tag: string;
+            id?: string;
+            classes?: string[];
+            text?: string;
+            children?: NodePathStructure[];
+          }
+
           function getNodePath(
             element: Element,
             maxDepth = 3,
             currentDepth = 0
-          ): any {
+          ): NodePathStructure | null {
             if (!element || currentDepth > maxDepth) return null;
 
             const children = Array.from(element.children)
               .map((child) => getNodePath(child, maxDepth, currentDepth + 1))
-              .filter(Boolean);
+              .filter((node): node is NodePathStructure => node !== null);
 
             return {
               tag: element.tagName,

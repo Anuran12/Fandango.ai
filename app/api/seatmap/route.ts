@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FandangoScraper } from "@/lib/fandangoScraper";
+import { FandangoScraper, ScraperResult } from "@/lib/fandangoScraper";
 
 // Add a global timeout for better performance
 const SCRAPER_TIMEOUT = 30000; // 30 seconds
@@ -61,13 +61,13 @@ export async function POST(req: NextRequest) {
       results = (await Promise.race([
         scraper.navigateToTimeSlotSafely(timeSlotUrl),
         timeoutPromise,
-      ])) as any;
+      ])) as ScraperResult;
     } else {
       // For existing sessions, use the continueToSeatMap method with the selected time
       results = (await Promise.race([
         scraper.continueToSeatMap(timeSlotUrl, selectedTime),
         timeoutPromise,
-      ])) as any;
+      ])) as ScraperResult;
     }
 
     // Return a useful message for access denied errors

@@ -25,8 +25,9 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
-# Add Playwright browsers explicitly
-RUN npx playwright install chromium --with-deps
+# Skip browser download and use system Chromium
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Copy the rest of the application
 COPY . .
@@ -34,7 +35,11 @@ COPY . .
 # Build the Next.js application
 RUN npm run build
 
-# Set Playwright to use installed browser
+# Create directory for Playwright to look for browsers
+RUN mkdir -p /ms-playwright/chromium-1169 \
+    && ln -s /usr/bin/chromium-browser /ms-playwright/chromium-1169/chrome
+
+# Set environment variable for Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Expose the port the app runs on

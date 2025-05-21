@@ -76,9 +76,16 @@ class FandangoScraper {
         process.env.CONTAINER === "true" || process.env.RENDER === "true";
       console.log(`Running in Docker/Render environment: ${isDocker}`);
 
+      // Use system Chromium if PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH is set
+      const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+      console.log(
+        `Using Chrome executable path: ${executablePath || "default"}`
+      );
+
       this.browser = await chromium.launch({
         headless: true, // Always use headless in Docker
         timeout: this.timeout,
+        executablePath: executablePath,
         args: [
           "--disable-dev-shm-usage",
           "--disable-setuid-sandbox",

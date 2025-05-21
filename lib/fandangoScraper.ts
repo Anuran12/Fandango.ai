@@ -71,25 +71,10 @@ class FandangoScraper {
 
   async initialize() {
     try {
-      console.log(
-        "Initializing with browser path:",
-        process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-      );
-
-      // Configuration options for browser launch
-      const launchOptions = {
+      this.browser = await chromium.launch({
         headless: this.headless,
         timeout: this.timeout,
-        // Check if we have an environment-specified executable path
-        executablePath:
-          process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
-      };
-
-      this.browser = await chromium.launch(launchOptions);
-
-      // Log successful browser launch
-      console.log("Browser launched successfully");
-
+      });
       this.context = await this.browser.newContext({
         viewport: { width: 1280, height: 720 },
         userAgent:

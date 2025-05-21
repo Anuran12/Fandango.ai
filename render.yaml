@@ -8,10 +8,8 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
-        value: "1"
-      - key: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-        value: "/usr/bin/chromium-browser"
+      - key: PORT
+        value: "10000"
     scaling:
       minInstances: 1
       maxInstances: 1

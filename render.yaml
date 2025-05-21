@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: fandango-explorer
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+    scaling:
+      minInstances: 1
+      maxInstances: 1

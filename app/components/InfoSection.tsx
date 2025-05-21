@@ -37,13 +37,14 @@ export default function InfoSection() {
             <p className="font-medium mt-5 mb-3">Example queries:</p>
             <ul className="list-disc pl-5 space-y-2 text-gray-600">
               <li className="hover:text-blue-600 transition-colors cursor-pointer">
-                "Show me showtimes for Dune in Chicago"
+                &ldquo;Show me showtimes for Dune in Chicago&rdquo;
               </li>
               <li className="hover:text-blue-600 transition-colors cursor-pointer">
-                "What movies are playing at AMC theaters in New York after 7pm?"
+                &ldquo;What movies are playing at AMC theaters in New York after
+                7pm?&rdquo;
               </li>
               <li className="hover:text-blue-600 transition-colors cursor-pointer">
-                "Find family movies at Regal Cinema in Los Angeles"
+                &ldquo;Find family movies at Regal Cinema in Los Angeles&rdquo;
               </li>
             </ul>
           </div>

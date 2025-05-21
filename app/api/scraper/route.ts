@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FandangoScraper, ScraperQuery } from "@/lib/fandangoScraper";
+import {
+  FandangoScraper,
+  ScraperQuery,
+  ScraperResult,
+} from "@/lib/fandangoScraper";
 
 // Add a global timeout for better performance
 const SCRAPER_TIMEOUT = 30000; // 30 seconds
@@ -21,7 +25,7 @@ export async function POST(req: NextRequest) {
     scraper = await FandangoScraper.getOrCreateSession();
 
     // Process the query with timeout
-    const timeoutPromise = new Promise((_, reject) => {
+    const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
         reject(new Error("Scraper operation timed out"));
       }, SCRAPER_TIMEOUT * 1.5); // Give a bit extra time than the internal timeout
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
     const results = (await Promise.race([
       scraper.processQuery(query),
       timeoutPromise,
-    ])) as any; // Use type assertion to handle promise race result
+    ])) as ScraperResult;
 
     // Make sure the sessionId is included in the results
     if (!results.sessionId && scraper) {

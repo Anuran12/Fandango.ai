@@ -12,7 +12,6 @@ interface ResultsDisplayProps {
 
 export default function ResultsDisplay({ results }: ResultsDisplayProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     if (results) {
@@ -51,11 +50,6 @@ export default function ResultsDisplay({ results }: ResultsDisplayProps) {
       ? highlightedTimeSlots
       : results.timeSlots || [];
 
-  // Debug info about time slots
-  console.log("All time slots:", results.timeSlots);
-  console.log("Highlighted time slots:", highlightedTimeSlots);
-  console.log("Time slots to display:", timeSlots);
-
   return (
     <div
       className={`w-full my-6 flex justify-start transition-opacity duration-300 ${
@@ -66,7 +60,7 @@ export default function ResultsDisplay({ results }: ResultsDisplayProps) {
         {results.error ? (
           <div className="text-red-600">
             <p className="mb-2 font-medium">
-              I couldn't find what you're looking for:
+              I couldn&apos;t find what you&apos;re looking for:
             </p>
             <p>{results.error}</p>
           </div>
@@ -83,25 +77,6 @@ export default function ResultsDisplay({ results }: ResultsDisplayProps) {
             )}
           </div>
         )}
-
-        {/* Debug information toggle */}
-        {/* <div className="mt-2 mb-4">
-          <button
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs text-blue-600 hover:text-blue-800 underline"
-          >
-            {showDebug ? "Hide Debug Info" : "Show Debug Info"}
-          </button>
-
-          {showDebug && (
-            <div className="mt-2 bg-gray-100 p-3 rounded-md text-xs overflow-auto max-h-40">
-              <p className="font-bold">Time Slots Data:</p>
-              <pre className="mt-1">
-                {JSON.stringify(results.timeSlots || [], null, 2)}
-              </pre>
-            </div>
-          )}
-        </div> */}
 
         {results.screenshots && results.screenshots.length > 0 && (
           <div className="mt-4">

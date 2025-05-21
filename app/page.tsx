@@ -143,6 +143,22 @@ export default function Home() {
     }
   };
 
+  // Function to just display the user query and set processing state
+  // without triggering the scraper API yet
+  const displayUserQuery = (query: string) => {
+    // Add the query to history if it's not already there
+    if (!queryHistory.includes(query)) {
+      setQueryHistory([...queryHistory, query]);
+    }
+
+    // Just set current query to display in the UI and set processing state
+    setCurrentQuery(query);
+    setIsProcessing(true);
+
+    // Scroll to show processing indicator
+    scrollToBottom();
+  };
+
   const handleClearResults = () => {
     setCurrentQuery("");
     setExtractedParams(null);
@@ -238,7 +254,11 @@ export default function Home() {
       {/* Fixed input area at the bottom - ChatGPT style */}
       <div className="fixed bottom-0 w-full shadow-md pb-8 px-4 bg-white">
         <div className="container mx-auto flex justify-center">
-          <SearchForm onSubmit={handleSearch} isProcessing={isProcessing} />
+          <SearchForm
+            onSubmit={handleSearch}
+            isProcessing={isProcessing}
+            displayUserQuery={displayUserQuery}
+          />
         </div>
         <div className="text-center text-xs text-gray-400 mt-2">
           Search for movies, theaters, and showtimes in natural language

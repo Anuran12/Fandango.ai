@@ -8,14 +8,17 @@ import styles from "./searchform.module.css";
 interface SearchFormProps {
   onSubmit: (query: string, params: ScraperQuery) => void;
   isProcessing: boolean;
+  displayUserQuery?: (query: string) => void;
 }
 
 export default function SearchForm({
   onSubmit,
   isProcessing,
+  displayUserQuery,
 }: SearchFormProps) {
   const [query, setQuery] = useState("");
   const [searchFinished, setSearchFinished] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Function to trigger scrolling in the parent container
@@ -63,12 +66,30 @@ export default function SearchForm({
     }
   }, []);
 
+  // Clear input when processing finishes (answer generated)
+  useEffect(() => {
+    if (!isProcessing && localLoading) {
+      setQuery("");
+      setLocalLoading(false);
+    }
+  }, [isProcessing, localLoading]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Set local loading immediately to show spinner
+    setLocalLoading(true);
+
     if (!query.trim()) {
       toast.error("Please enter a search query");
+      setLocalLoading(false);
       return;
+    }
+
+    // If we have the displayUserQuery function, use it to just display the query
+    // without triggering the full search processing yet
+    if (displayUserQuery) {
+      displayUserQuery(query);
     }
 
     try {
@@ -97,6 +118,7 @@ export default function SearchForm({
     } catch (error) {
       console.error("Error processing search:", error);
       toast.error("Failed to process search query");
+      setLocalLoading(false);
     }
   };
 
@@ -107,6 +129,8 @@ export default function SearchForm({
   };
 
   const hasInputValue = query.trim().length > 0;
+  // Show loading state either from parent or local state
+  const showLoading = isProcessing || localLoading;
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-4xl">
@@ -119,11 +143,11 @@ export default function SearchForm({
             onChange={handleInputChange}
             placeholder="What else can I help with?"
             className={styles.input}
-            disabled={isProcessing}
+            disabled={showLoading}
           />
 
           {/* Show search finished tag after search completion */}
-          {searchFinished && !isProcessing && (
+          {searchFinished && !showLoading && (
             <div className={styles.button}>
               <span>search finished</span>
               <svg
@@ -144,7 +168,7 @@ export default function SearchForm({
           )}
 
           {/* Show send button, disabled when empty */}
-          {!searchFinished && !isProcessing && (
+          {!searchFinished && !showLoading && (
             <button
               type="submit"
               className={`${styles.sendButton} ${
@@ -166,7 +190,7 @@ export default function SearchForm({
           )}
 
           {/* Show spinner when processing */}
-          {isProcessing && (
+          {showLoading && (
             <div className={styles.spinner}>
               <div className="animate-spin h-5 w-5 border-t-2 border-b-2 border-blue-600 rounded-full"></div>
             </div>

@@ -1,0 +1,30 @@
+FROM node:20-alpine
+
+# Create app directory
+WORKDIR /app
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install dependencies
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN npm ci
+
+# Copy the rest of the application
+COPY . .
+
+# Debug information
+RUN echo "Node version:" && node --version
+RUN echo "NPM version:" && npm --version
+RUN echo "Directory contents:" && ls -la
+RUN echo "package.json:" && cat package.json
+
+# Build with debugging
+RUN npm run build
+
+# Expose the port the app runs on
+EXPOSE 10000
+ENV PORT=10000
+
+# Use standalone server mode
+CMD ["node", ".next/standalone/server.js"] 

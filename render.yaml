@@ -5,6 +5,7 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /
+    buildCommand: echo "Building with Docker..."
     envVars:
       - key: GEMINI_API_KEY
         sync: false
@@ -12,6 +13,14 @@ services:
         value: "10000"
       - key: RENDER
         value: "true"
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=4096"
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
+      - key: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+        value: "/usr/bin/chromium-browser"
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "/ms-playwright"
     scaling:
       minInstances: 1
       maxInstances: 1
